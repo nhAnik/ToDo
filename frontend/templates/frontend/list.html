@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ToDo</title>
+
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" 
+  integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" 
+  crossorigin="anonymous">
+
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Yusei+Magic&display=swap" rel="stylesheet">
+  
+  <script src="https://unpkg.com/vue@next"></script>
+
+  <style type="text/css">
+    body {
+      background: rgb(2,0,36);
+      background: linear-gradient(90deg, rgba(2,0,36,1) 0%, rgba(9,9,121,1) 35%, rgba(0,212,255,1) 100%);
+    }
+
+    h1, h2, h3, h4, h5, p, span, del {
+      font-family: 'Yusei Magic', sans-serif;
+    }
+
+    #task-container {
+      padding-top: 2px;
+      max-width: 600px;
+      margin: 0 auto;
+      box-shadow: 0 14px 28px rgba(0,0,0,.25), 0 10px 10px rgba(0,0,0,.25);
+      background-color: #E3F2FD ;
+      margin-top: 100px;
+      margin-bottom: 100px;
+      border-radius: 5px;
+
+      justify-content: space-around;
+      align-items: flex-start;
+    }
+    
+    #form-wrapper {
+      position: sticky;
+      position: -webkit-sticky;
+      top: 0rem;
+      background-color: white;
+      border-radius: 5px;
+      padding: 10px;
+      margin: 5px;
+      box-shadow: 0 14px 28px rgba(0,0,0,.25), 0 10px 10px rgba(0,0,0,.25);
+    }
+
+    #list-wrapper {
+      padding-left: 10px;
+      padding-right: 10px;
+    }
+
+    .task-wrapper {
+      padding: 15px;
+    }
+
+    .task-wrapper:not(:last-child) {
+      border-bottom: 1px solid darkslategray;
+    }
+
+    .task-title {
+      cursor: pointer;
+    }
+
+    .flex-wrapper {
+      display: flex;
+    }
+
+    #submit {
+      background-color: darkslategray;
+      color: white;
+      border-radius: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <div id="task-container">
+
+      <div id="form-wrapper">
+        <form id="form" @submit="addTask">
+          <div class="flex-wrapper">
+            <div style="flex: 8;">
+              <input id="title" class="form-control" type="text" name="title" 
+                placeholder="Add Task..."
+                v-model.trim="activeTask.title">
+            </div>
+            <div style="flex: 1;">
+              <input v-if="isEditing" id="submit" class="btn" type="submit" value="Edit">
+              <input v-else id="submit" class="btn" type="submit" value="Add">
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div id="list-wrapper">
+        <task-item
+        v-for="task in taskList"
+        v-bind:task="task"
+        v-bind:key="task.id"
+        @delete-task="deleteTask"
+        @edit-task="editTask"
+        @complete-task="completeTask"></task-item>
+      </div>
+      
+    </div>
+  </div>
+
+
+  <script type="text/javascript">
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            // Does this cookie string begin with the name we want?
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+  }
+  const csrftoken = getCookie('csrftoken');
+
+  const TodoList = {
+    delimiters: ['[[', ']]'],
+    data() {
+      return {
+        taskList: [],
+        activeTask: {
+          id: -1,
+          title: '',
+          completed: false,
+        },
+        isEditing: false,
+      }
+    },
+    created() {
+      this.buildTaskList();
+    },
+    methods: {
+      buildTaskList() {
+        const url = 'http://127.0.0.1:8000/api/tasks/';   
+        fetch(url)
+          .then(response => response.json())
+          .then(data => this.taskList = data);
+      },
+      addTask(ev) {
+        ev.preventDefault();
+        console.log("Task: " + this.activeTask.title + ";")
+        if(this.activeTask.title === '') return;
+
+        let url = null, method;
+        if(this.isEditing) {
+          url = `http://127.0.0.1:8000/api/tasks/${this.activeTask.id}/`;
+          method = 'PUT';
+          this.isEditing = false;
+        } else {
+          url = 'http://127.0.0.1:8000/api/tasks/';
+          method = 'POST';
+        }
+        fetch(url, {
+          method: method,
+          headers: {
+            'Content-type': 'application/json',
+            'X-CSRFToken': csrftoken,
+          },
+          body: JSON.stringify({
+            'title': this.activeTask.title,
+          }),
+        })
+        .then(response => {
+          this.buildTaskList();
+          this.activeTask.title = '';
+        });
+      },
+      editTask(task) {
+        this.activeTask.title = task.title;
+        this.activeTask.id = task.id;
+        this.isEditing = true;
+      },
+      deleteTask(task) {
+        const url = `http://127.0.0.1:8000/api/tasks/${task.id}/`;
+        fetch(url, {
+          method: 'DELETE',
+          headers: {
+            'Content-type': 'application/json',
+            'X-CSRFToken': csrftoken,
+          },
+        })
+        .then(response => {
+          this.buildTaskList();
+          if(this.activeTask.id == task.id) {
+            this.isEditing = false;
+          }
+        });
+      },
+      completeTask(task) {
+        const url = `http://127.0.0.1:8000/api/tasks/${task.id}/`;
+        fetch(url, {
+          method: 'PUT',
+          headers: {
+            'Content-type': 'application/json',
+            'X-CSRFToken': csrftoken,
+          },
+          body: JSON.stringify({
+            'title': task.title,
+            'completed': !task.completed,
+          }),
+        })
+        .then(response => this.buildTaskList());
+      }
+    }
+  }
+
+  const app = Vue.createApp(TodoList)
+
+  app.component('task-item', {
+    delimiters: ['[[', ']]'],
+    props: ['task'],
+    data() {
+      return {
+        isComplete: false,
+      }
+    },
+    template:
+    /*html*/
+    `
+    <div class="task-wrapper flex-wrapper">
+      <div style="flex:7">
+        <del v-if="isComplete" class="task-title"
+          @click="completeTask(task)">[[ task.title ]]</del>
+        <span v-else class="task-title"
+          @click="completeTask(task)">[[ task.title ]]</span>
+      </div>
+      <div style="flex:1">
+        <button class="btn btn-sm btn-outline-info edit" 
+          @click="editTask(task)">Edit</button>
+      </div>
+      <div style="flex:1">
+        <button class="btn btn-sm btn-outline-dark delete" 
+          @click="deleteTask(task)">-</button>
+      </div>
+    </div>
+    `,
+    created() {
+      this.isComplete = this.$props.task.completed
+    },
+    methods: {
+      editTask(task) {
+        this.$emit('edit-task', task);
+      },
+      deleteTask(task) {
+        this.$emit('delete-task', task);
+      },
+      completeTask(task) {
+        this.isComplete = !this.isComplete;
+        this.$emit('complete-task', task);
+      }
+    }
+  })
+
+  app.mount('#app')
+    
+  </script>
+</body>
+</html>
